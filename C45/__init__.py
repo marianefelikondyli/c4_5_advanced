@@ -196,7 +196,11 @@ class C45Classifier:
 
         return majority_class
 
-    def __build_decision_tree(self, data, attributes, weights):
+    def __build_decision_tree(self, data, attributes, weights, depth=0):
+        # Base case: check if maximum depth has been reached
+        if self.max_depth is not None and depth >= self.max_depth:
+            return _LeafNode(self.__majority_class(data, weights), sum(weights))
+
         # Check if the current node has enough samples
         if sum(weights) < self.min_samples_leaf:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
@@ -229,14 +233,14 @@ class C45Classifier:
             # Recursively build the tree for each subset, only if they meet the min_samples_leaf criterion
             if sum(left_weights) >= self.min_samples_leaf:
                 tree.add_child("<= " + str(best_threshold),
-                               self.__build_decision_tree(left_data, new_attributes, left_weights))
+                               self.__build_decision_tree(left_data, new_attributes, left_weights, depth + 1))
             else:
                 tree.add_child("<= " + str(best_threshold),
                                _LeafNode(self.__majority_class(left_data, left_weights), sum(left_weights)))
 
             if sum(right_weights) >= self.min_samples_leaf:
                 tree.add_child("> " + str(best_threshold),
-                               self.__build_decision_tree(right_data, new_attributes, right_weights))
+                               self.__build_decision_tree(right_data, new_attributes, right_weights, depth + 1))
             else:
                 tree.add_child("> " + str(best_threshold),
                                _LeafNode(self.__majority_class(right_data, right_weights), sum(right_weights)))
@@ -246,7 +250,7 @@ class C45Classifier:
                 subset_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] == value]
 
                 if sum(subset_weights) >= self.min_samples_leaf:
-                    tree.add_child(value, self.__build_decision_tree(subset, new_attributes, subset_weights))
+                    tree.add_child(value, self.__build_decision_tree(subset, new_attributes, subset_weights, depth + 1))
                 else:
                     tree.add_child(value, _LeafNode(self.__majority_class(subset, subset_weights), sum(subset_weights)))
 
