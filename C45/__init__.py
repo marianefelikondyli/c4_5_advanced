@@ -5,7 +5,7 @@ import numpy as np
 
 def is_numeric_attribute(data, attribute_index):
     # This assumes `data` is a DataFrame
-    return isinstance(data[0][attribute_index], int) or isinstance(data[0][attribute_index], float)
+    return (isinstance(data[0][attribute_index], int) and not isinstance(data[0][attribute_index], bool)) or isinstance(data[0][attribute_index], float)
 
 
 class _DecisionNode:
@@ -67,7 +67,7 @@ class C45Classifier:
         unique_values = sorted(set(column_data))
 
         best_threshold = None
-        best_gain = -float('inf')
+        best_gain_ratio = -float('inf')
 
         for i in range(1, len(unique_values)):
             threshold = (unique_values[i - 1] + unique_values[i]) / 2
@@ -97,11 +97,11 @@ class C45Classifier:
             gain_ratio = gain / split_info if split_info != 0 else 0
 
             # Check if this threshold provides a better gain ratio
-            if gain_ratio > best_gain:
-                best_gain = gain_ratio
+            if gain_ratio > best_gain_ratio:
+                best_gain_ratio = gain_ratio
                 best_threshold = threshold
 
-        return best_threshold, best_gain
+        return best_threshold, best_gain_ratio
 
     def __calculate_entropy(self, data, weights):
         # Calculate entropy of the given dataset
@@ -134,7 +134,8 @@ class C45Classifier:
             if record[attribute_index] == attribute_value:
                 split_data.append(record[:attribute_index] + record[attribute_index+1:])
                 split_weights.append(weights[i])
-
+        print(split_data)
+        print(split_weights)
         return split_data, split_weights
 
     def __select_best_attribute_c50(self, data, attributes, weights):
@@ -142,17 +143,19 @@ class C45Classifier:
         total_entropy = self.__calculate_entropy(data, weights)
         best_attribute = None
         best_gain_ratio = 0.0  # Can be information gain or gain ratio based on your implementation
+        split_info = 0.0
         best_threshold = None  # Only applicable for numeric attributes
 
         for attribute_index in range(len(attributes)):
             if is_numeric_attribute(data, attribute_index):
+                print(data[0][attribute_index])
+                print('mpika sto numeric')
                 threshold, measure = self.find_best_threshold(data, attribute_index, weights, total_entropy)
                 if measure > best_gain_ratio:
                     best_gain_ratio = measure
                     best_attribute = attribute_index
                     best_threshold = threshold
             else:
-                split_info = 0.0
                 attribute_values = set([record[attribute_index] for record in data])
                 attribute_entropy = 0.0
 
@@ -162,16 +165,20 @@ class C45Classifier:
                     subset_probability = sum(subset_weights) / sum(weights)
                     attribute_entropy += subset_probability * subset_entropy
                     split_info -= subset_probability * math.log2(subset_probability)
-                    gain = total_entropy - attribute_entropy
-                    if split_info != 0.0:
-                        gain_ratio = gain / split_info
-                    else:
-                        gain_ratio = 0.0
 
-                    if gain_ratio > best_gain_ratio:
-                        best_gain_ratio = gain_ratio
-                        best_attribute = attribute_index
-                        best_threshold = None
+
+                gain = total_entropy - attribute_entropy
+
+                if split_info != 0.0:
+                    gain_ratio = gain / split_info
+                else:
+                    gain_ratio = 0.0
+
+                if gain_ratio > best_gain_ratio:
+                    best_gain_ratio = gain_ratio
+                    best_attribute = attribute_index
+                    best_threshold = None
+        #print(best_threshold)
         return best_attribute, best_threshold
 
     def __majority_class(self, data, weights):
@@ -210,16 +217,17 @@ class C45Classifier:
         if len(class_labels) == 1:
             return _LeafNode(class_labels.pop(), sum(weights))
 
-        # Check if any attributes are left to split on
-        if not attributes:
+        if len(attributes) == 1:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
         # Select the best attribute and threshold to split the dataset
         best_attribute, best_threshold = self.__select_best_attribute_c50(data, attributes, weights)
+        print(best_attribute, best_threshold)
         if best_attribute is None:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
         best_attribute_name = attributes[best_attribute]
+
         tree = _DecisionNode(best_attribute_name)
         new_attributes = attributes[:best_attribute] + attributes[best_attribute + 1:]
 
@@ -245,9 +253,9 @@ class C45Classifier:
                 tree.add_child("> " + str(best_threshold),
                                _LeafNode(self.__majority_class(right_data, right_weights), sum(right_weights)))
         else:
-            for value in set(rec[best_attribute] for rec in data):
-                subset = [rec for rec in data if rec[best_attribute] == value]
-                subset_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] == value]
+            attribute_values = set([record[best_attribute] for record in data])
+            for value in attribute_values:
+                subset, subset_weights = self.__split_data(data, best_attribute, value, weights)
 
                 if sum(subset_weights) >= self.min_samples_leaf:
                     tree.add_child(value, self.__build_decision_tree(subset, new_attributes, subset_weights, depth + 1))
