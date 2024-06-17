@@ -212,7 +212,7 @@ class C45Classifier:
                         best_attribute = attribute_index
                         best_threshold = None
                         best_grouping = grouping
-
+        print(best_attribute, best_grouping)
         return best_attribute, best_threshold, best_grouping
 
     def __majority_class(self, data, weights):
@@ -302,9 +302,29 @@ class C45Classifier:
 
         return tree
 
+    def prune_tree(self, node):
+        if isinstance(node, _DecisionNode):
+            children_copy = list(node.children.items())
+            for value, child in children_copy:
+                if isinstance(child, _DecisionNode):
+                    # Recursively prune the child nodes
+                    self.prune_tree(child)
+
+                    # Check if the current node and the child node have the same attribute
+                    if node.attribute == child.attribute:
+                        # Merge child node's children with the current node's children
+                        for grandchild_value, grandchild_node in list(child.children.items()):
+                            node.children[grandchild_value] = grandchild_node
+                        # Remove the child node
+                        del node.children[value]
+
+        return node
+
     def __make_tree(self, data, attributes, weights):
         # Make decision tree using the given dataset, attributes, and weights
-        return self.__build_decision_tree(data, attributes, weights)
+        tree = self.__build_decision_tree(data, attributes, weights)
+        tree = self.prune_tree(tree)
+        return tree
 
     def __train(self, data, weight=1):
         self.weight = weight

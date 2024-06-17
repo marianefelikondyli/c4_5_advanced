@@ -3,21 +3,21 @@ import pandas as pd
 import numpy as np
 import graphviz
 
-# expanded_data = pd.read_csv('play_tennis.csv', delimiter=';')
-# expanded_data.drop(columns=['Unnamed: 0'], inplace=True)
+expanded_data = pd.read_csv('play_tennis.csv', delimiter=';')
+expanded_data.drop(columns=['Unnamed: 0'], inplace=True)
+
+print(expanded_data.head())
+
+
+# expanded_data = pd.DataFrame({
+#     'Outlook': ['Sunny', 'Sunny', 'Overcast', 'Rain', 'Rain', 'Rain', 'Overcast', 'Sunny', 'Sunny', 'Rain', 'Sunny', 'Overcast', 'Overcast', 'Rain'],
+#     'Temperature': ['Hot', 'Hot', 'Hot', 'Mild', 'Cool', 'Cool', 'Cool', 'Mild', 'Cool', 'Mild', 'Mild', 'Mild', 'Hot', 'Mild'],
+#     'Humidity': ['High', 'High', 'High', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'High'],
+#     'Windy': [False, True, False, False, False, True, True, False, False, False, True, True, False, True],
+#     'PlayTennis': ['No', 'No', 'Yes', 'Yes', 'Yes', 'No', 'Yes', 'No', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No']
+# })
 #
-# print(expanded_data.head())
-
-
-expanded_data = pd.DataFrame({
-    'Outlook': ['Sunny', 'Sunny', 'Overcast', 'Rain', 'Rain', 'Rain', 'Overcast', 'Sunny', 'Sunny', 'Rain', 'Sunny', 'Overcast', 'Overcast', 'Rain'],
-    'Temperature': ['Hot', 'Hot', 'Hot', 'Mild', 'Cool', 'Cool', 'Cool', 'Mild', 'Cool', 'Mild', 'Mild', 'Mild', 'Hot', 'Mild'],
-    'Humidity': ['High', 'High', 'High', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'High'],
-    'Windy': [False, True, False, False, False, True, True, False, False, False, True, True, False, True],
-    'PlayTennis': ['No', 'No', 'Yes', 'Yes', 'Yes', 'No', 'Yes', 'No', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No']
-})
-
-expanded_data.to_csv('test_data.csv')
+# expanded_data.to_csv('test_data.csv')
 
 
 # Instantiate the C45Classifier
