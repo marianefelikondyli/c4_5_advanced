@@ -176,7 +176,7 @@ class C45Classifier:
         best_gain_ratio = 0.0
         best_threshold = None
         best_grouping = None
-        print(attributes)
+
         for attribute_index in range(len(attributes)):
             if is_numeric_attribute(data, attribute_index):
                 threshold, measure = self.find_best_threshold(data, attribute_index, weights, total_entropy)
@@ -212,8 +212,7 @@ class C45Classifier:
                         best_attribute = attribute_index
                         best_threshold = None
                         best_grouping = grouping
-            print(best_grouping)
-        print(best_attribute)
+
         return best_attribute, best_threshold, best_grouping
 
     def __majority_class(self, data, weights):
@@ -287,7 +286,7 @@ class C45Classifier:
             for group in best_grouping:
                 subset = split_data[tuple(group)]
                 subset_weights = split_weights[tuple(group)]
-                value = " + ".join(map(str, group))
+                value = "Other" if len(group) > 1 else group[0]
 
                 if sum(subset_weights) >= self.min_samples_leaf:
                     tree.add_child(value, self.__build_decision_tree(subset, attributes, subset_weights, depth + 1))
@@ -331,6 +330,9 @@ class C45Classifier:
 
         if attribute_values in tree.children:
             child_node = tree.children[attribute_values]
+            return self.__classify(child_node, instance)
+        elif "Other" in tree.children:
+            child_node = tree.children["Other"]
             return self.__classify(child_node, instance)
         else:
             class_labels = []
@@ -403,7 +405,7 @@ class C45Classifier:
                     dot.edge(str(id(parent_node)), str(id(node)), label=str(edge_label))
 
                 for value, child_node in node.children.items():
-                    if " + " in value:
+                    if "Other" in str(value):
                         value = "Other"
                     build_tree(child_node, node, str(value))
             elif isinstance(node, _LeafNode):
