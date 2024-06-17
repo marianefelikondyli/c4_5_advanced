@@ -10,39 +10,14 @@ def is_numeric_attribute(data, attribute_index):
 
 
 def generate_unique_groupings(lst):
-    '''
-    Function to return the combinations for unique values
-    :param lst:
-    :return:
-    '''
-    def recursive_groupings(elements):
-        if not elements:
-            return [[]]
-        result = []
-        for i in range(1, len(elements) + 1):
-            for combination in combinations(elements, i):
-                remaining = [e for e in elements if e not in combination]
-                for sub_grouping in recursive_groupings(remaining):
-                    # Sort inner lists to ensure uniqueness
-                    sorted_combination = sorted([list(combination)] + sub_grouping)
-                    result.append(sorted_combination)
-        return result
-
-    # Start the recursive grouping process
-    all_groupings = recursive_groupings(lst)
-
-    # Filter out groupings that don't use all elements
-    valid_groupings = [grouping for grouping in all_groupings if sum(len(group) for group in grouping) == len(lst)]
-
-    # Use a set to remove duplicates
     unique_groupings = []
-    seen = set()
-    for grouping in valid_groupings:
-        # Convert grouping to a tuple of tuples so it can be added to a set
-        grouping_tuple = tuple(tuple(sorted(group)) for group in grouping)
-        if grouping_tuple not in seen:
-            seen.add(grouping_tuple)
-            unique_groupings.append(grouping)
+    length = len(lst)
+
+    # Generate combinations of the list for the desired groupings
+    for i in range(1, length):
+        for combo in combinations(lst, i):
+            remaining = [item for item in lst if item not in combo]
+            unique_groupings.append([list(combo)] + [[item] for item in remaining])
 
     return unique_groupings
 
