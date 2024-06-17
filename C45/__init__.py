@@ -417,7 +417,6 @@ class C45Classifier:
             print("Accuracy ", key, ": ", acc[key])
 
     def generate_tree_diagram(self, graphviz, filename):
-        # Generate decision tree diagram using graphviz module
         dot = graphviz.Digraph()
 
         def build_tree(node, parent_node=None, edge_label=None):
@@ -429,6 +428,8 @@ class C45Classifier:
                     dot.edge(str(id(parent_node)), str(id(node)), label=str(edge_label))
 
                 for value, child_node in node.children.items():
+                    if " + " in value:
+                        value = "Other"
                     build_tree(child_node, node, str(value))
             elif isinstance(node, _LeafNode):
                 current_node_label = f"Class: {str(node.label)}, Weight: {str(node.weight)}"
