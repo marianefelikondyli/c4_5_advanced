@@ -3,8 +3,13 @@ import pandas as pd
 import numpy as np
 import graphviz
 
-# Sample dataset
-data = pd.DataFrame({
+# expanded_data = pd.read_csv('play_tennis.csv', delimiter=';')
+# expanded_data.drop(columns=['Unnamed: 0'], inplace=True)
+#
+# print(expanded_data.head())
+
+
+expanded_data = pd.DataFrame({
     'Outlook': ['Sunny', 'Sunny', 'Overcast', 'Rain', 'Rain', 'Rain', 'Overcast', 'Sunny', 'Sunny', 'Rain', 'Sunny', 'Overcast', 'Overcast', 'Rain'],
     'Temperature': ['Hot', 'Hot', 'Hot', 'Mild', 'Cool', 'Cool', 'Cool', 'Mild', 'Cool', 'Mild', 'Mild', 'Mild', 'Hot', 'Mild'],
     'Humidity': ['High', 'High', 'High', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'Normal', 'Normal', 'High', 'Normal', 'High'],
@@ -12,12 +17,15 @@ data = pd.DataFrame({
     'PlayTennis': ['No', 'No', 'Yes', 'Yes', 'Yes', 'No', 'Yes', 'No', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No']
 })
 
+expanded_data.to_csv('test_data.csv')
+
+
 # Instantiate the C45Classifier
-classifier = C45Classifier(max_depth=5)
+classifier = C45Classifier(max_depth=5, min_samples_leaf=2)
 
 # Separate features and labels
-features = data.drop('PlayTennis', axis=1)
-labels = data['PlayTennis']
+features = expanded_data.drop('PlayTennis', axis=1)
+labels = expanded_data['PlayTennis']
 
 # Fit the model
 classifier.fit(features, labels)
@@ -52,7 +60,7 @@ print("Decision Rules:")
 classifier.print_rules()
 
 # Generate a visual representation of the decision tree
-classifier.generate_tree_diagram(graphviz, "decision_tree")
+classifier.generate_tree_diagram(graphviz, "decision_tree_2")
 
 # Print summary
 classifier.summary()

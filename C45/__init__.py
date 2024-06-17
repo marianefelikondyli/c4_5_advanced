@@ -1,11 +1,50 @@
 import math
 import pandas as pd
 import numpy as np
+from itertools import combinations
 
 
 def is_numeric_attribute(data, attribute_index):
     # This assumes `data` is a DataFrame
     return (isinstance(data[0][attribute_index], int) and not isinstance(data[0][attribute_index], bool)) or isinstance(data[0][attribute_index], float)
+
+
+def generate_unique_groupings(lst):
+    '''
+    Function to return the combinations for unique values
+    :param lst:
+    :return:
+    '''
+    def recursive_groupings(elements):
+        if not elements:
+            return [[]]
+        result = []
+        for i in range(1, len(elements) + 1):
+            for combination in combinations(elements, i):
+                remaining = [e for e in elements if e not in combination]
+                for sub_grouping in recursive_groupings(remaining):
+                    # Sort inner lists to ensure uniqueness
+                    sorted_combination = sorted([list(combination)] + sub_grouping)
+                    result.append(sorted_combination)
+        return result
+
+    # Start the recursive grouping process
+    all_groupings = recursive_groupings(lst)
+
+    # Filter out groupings that don't use all elements
+    valid_groupings = [grouping for grouping in all_groupings if sum(len(group) for group in grouping) == len(lst)]
+
+    # Use a set to remove duplicates
+    unique_groupings = []
+    seen = set()
+    for grouping in valid_groupings:
+        # Convert grouping to a tuple of tuples so it can be added to a set
+        grouping_tuple = tuple(tuple(sorted(group)) for group in grouping)
+        if grouping_tuple not in seen:
+            seen.add(grouping_tuple)
+            unique_groupings.append(grouping)
+
+    return unique_groupings
 
 
 class _DecisionNode:
@@ -132,54 +171,75 @@ class C45Classifier:
 
         for i, record in enumerate(data):
             if record[attribute_index] == attribute_value:
-                split_data.append(record[:attribute_index] + record[attribute_index+1:])
+                split_data.append(record)
                 split_weights.append(weights[i])
-        print(split_data)
-        print(split_weights)
+        # print(split_data)
+        # print(split_weights)
+        return split_data, split_weights
+
+    def __split_data_categorical(self, data, attribute_index, grouping, weights):
+        split_data = {tuple(group): [] for group in grouping}
+        split_weights = {tuple(group): [] for group in grouping}
+
+        for i, record in enumerate(data):
+            found = False
+            for group in grouping:
+                if record[attribute_index] in group:
+                    split_data[tuple(group)].append(record)
+                    split_weights[tuple(group)].append(weights[i])
+                    found = True
+                    break
+            if not found:
+                split_data[('Other',)].append(record)
+                split_weights[('Other',)].append(weights[i])
+
         return split_data, split_weights
 
     def __select_best_attribute_c50(self, data, attributes, weights):
-        # Select the best attribute to split the dataset using the C5.0 algorithm
         total_entropy = self.__calculate_entropy(data, weights)
         best_attribute = None
-        best_gain_ratio = 0.0  # Can be information gain or gain ratio based on your implementation
-        split_info = 0.0
-        best_threshold = None  # Only applicable for numeric attributes
-
+        best_gain_ratio = 0.0
+        best_threshold = None
+        best_grouping = None
+        print(attributes)
         for attribute_index in range(len(attributes)):
             if is_numeric_attribute(data, attribute_index):
-                print(data[0][attribute_index])
-                print('mpika sto numeric')
                 threshold, measure = self.find_best_threshold(data, attribute_index, weights, total_entropy)
                 if measure > best_gain_ratio:
                     best_gain_ratio = measure
                     best_attribute = attribute_index
                     best_threshold = threshold
+                    best_grouping = None
             else:
-                attribute_values = set([record[attribute_index] for record in data])
-                attribute_entropy = 0.0
+                attribute_values = list(set([record[attribute_index] for record in data]))
+                unique_groupings = generate_unique_groupings(attribute_values)
 
-                for value in attribute_values:
-                    subset, subset_weights = self.__split_data(data, attribute_index, value, weights)
-                    subset_entropy = self.__calculate_entropy(subset, subset_weights)
-                    subset_probability = sum(subset_weights) / sum(weights)
-                    attribute_entropy += subset_probability * subset_entropy
-                    split_info -= subset_probability * math.log2(subset_probability)
+                for grouping in unique_groupings:
+                    split_data, split_weights = self.__split_data_categorical(data, attribute_index, grouping, weights)
+                    attribute_entropy = 0.0
+                    split_info = 0.0
 
+                    for group in grouping:
+                        group_data = split_data[tuple(group)]
+                        group_weights = split_weights[tuple(group)]
+                        if group_data:
+                            subset_entropy = self.__calculate_entropy(group_data, group_weights)
+                            subset_probability = sum(group_weights) / sum(weights)
+                            attribute_entropy += subset_probability * subset_entropy
+                            if subset_probability > 0:
+                                split_info -= subset_probability * math.log2(subset_probability)
 
-                gain = total_entropy - attribute_entropy
+                    gain = total_entropy - attribute_entropy
+                    gain_ratio = gain / split_info if split_info != 0 else 0
 
-                if split_info != 0.0:
-                    gain_ratio = gain / split_info
-                else:
-                    gain_ratio = 0.0
-
-                if gain_ratio > best_gain_ratio:
-                    best_gain_ratio = gain_ratio
-                    best_attribute = attribute_index
-                    best_threshold = None
-        #print(best_threshold)
-        return best_attribute, best_threshold
+                    if gain_ratio > best_gain_ratio:
+                        best_gain_ratio = gain_ratio
+                        best_attribute = attribute_index
+                        best_threshold = None
+                        best_grouping = grouping
+            print(best_grouping)
+        print(best_attribute)
+        return best_attribute, best_threshold, best_grouping
 
     def __majority_class(self, data, weights):
         # Determine the majority class in the dataset
@@ -204,15 +264,12 @@ class C45Classifier:
         return majority_class
 
     def __build_decision_tree(self, data, attributes, weights, depth=0):
-        # Base case: check if maximum depth has been reached
         if self.max_depth is not None and depth >= self.max_depth:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
-        # Check if the current node has enough samples
         if sum(weights) < self.min_samples_leaf:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
-        # Existing check for homogeneity
         class_labels = set([record[-1] for record in data])
         if len(class_labels) == 1:
             return _LeafNode(class_labels.pop(), sum(weights))
@@ -220,47 +277,54 @@ class C45Classifier:
         if len(attributes) == 1:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
-        # Select the best attribute and threshold to split the dataset
-        best_attribute, best_threshold = self.__select_best_attribute_c50(data, attributes, weights)
-        print(best_attribute, best_threshold)
+        best_attribute, best_threshold, best_grouping = self.__select_best_attribute_c50(data, attributes, weights)
+
         if best_attribute is None:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
 
         best_attribute_name = attributes[best_attribute]
 
         tree = _DecisionNode(best_attribute_name)
-        new_attributes = attributes[:best_attribute] + attributes[best_attribute + 1:]
+        # new_attributes = attributes[:best_attribute] + attributes[best_attribute + 1:]
 
-        # Handle splits based on the best attribute and threshold found
         if best_threshold is not None:
-            left_data = [rec for rec in data if rec[best_attribute] <= best_threshold]
-            right_data = [rec for rec in data if rec[best_attribute] > best_threshold]
-            left_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] <= best_threshold]
-            right_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] > best_threshold]
-
-            # Recursively build the tree for each subset, only if they meet the min_samples_leaf criterion
-            if sum(left_weights) >= self.min_samples_leaf:
-                tree.add_child("<= " + str(best_threshold),
-                               self.__build_decision_tree(left_data, new_attributes, left_weights, depth + 1))
-            else:
-                tree.add_child("<= " + str(best_threshold),
-                               _LeafNode(self.__majority_class(left_data, left_weights), sum(left_weights)))
-
-            if sum(right_weights) >= self.min_samples_leaf:
-                tree.add_child("> " + str(best_threshold),
-                               self.__build_decision_tree(right_data, new_attributes, right_weights, depth + 1))
-            else:
-                tree.add_child("> " + str(best_threshold),
-                               _LeafNode(self.__majority_class(right_data, right_weights), sum(right_weights)))
+            # left_data = [rec for rec in data if rec[best_attribute] <= best_threshold]
+            # right_data = [rec for rec in data if rec[best_attribute] > best_threshold]
+            # left_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] <= best_threshold]
+            # right_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] > best_threshold]
+            #
+            # if sum(left_weights) >= self.min_samples_leaf:
+            #     tree.add_child("<= " + str(best_threshold),
+            #                    self.__build_decision_tree(left_data, new_attributes, left_weights, depth + 1))
+            # else:
+            #     tree.add_child("<= " + str(best_threshold),
+            #                    _LeafNode(self.__majority_class(left_data, left_weights), sum(left_weights)))
+            #
+            # if sum(right_weights) >= self.min_samples_leaf:
+            #     tree.add_child("> " + str(best_threshold),
+            #                    self.__build_decision_tree(right_data, new_attributes, right_weights, depth + 1))
+            # else:
+            #     tree.add_child("> " + str(best_threshold),
+            #                    _LeafNode(self.__majority_class(right_data, right_weights), sum(right_weights)))
+            pass
         else:
-            attribute_values = set([record[best_attribute] for record in data])
-            for value in attribute_values:
-                subset, subset_weights = self.__split_data(data, best_attribute, value, weights)
+            split_data, split_weights = self.__split_data_categorical(data, best_attribute, best_grouping, weights)
+            for group in best_grouping:
+                subset = split_data[tuple(group)]
+                subset_weights = split_weights[tuple(group)]
+                value = " + ".join(map(str, group))
 
                 if sum(subset_weights) >= self.min_samples_leaf:
-                    tree.add_child(value, self.__build_decision_tree(subset, new_attributes, subset_weights, depth + 1))
+                    tree.add_child(value, self.__build_decision_tree(subset, attributes, subset_weights, depth + 1))
                 else:
                     tree.add_child(value, _LeafNode(self.__majority_class(subset, subset_weights), sum(subset_weights)))
+            if 'Other' in split_data:
+                subset = split_data[('Other',)]
+                subset_weights = split_weights[('Other',)]
+                if sum(subset_weights) >= self.min_samples_leaf:
+                    tree.add_child('Other', self.__build_decision_tree(subset, attributes, subset_weights, depth + 1))
+                else:
+                    tree.add_child('Other', _LeafNode(self.__majority_class(subset, subset_weights), sum(subset_weights)))
 
         return tree
 
