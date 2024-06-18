@@ -243,8 +243,8 @@ class C45Classifier:
 
         if sum(weights) < self.min_samples_leaf:
             return _LeafNode(self.__majority_class(data, weights), sum(weights))
-
         class_labels = set([record[-1] for record in data])
+
         if len(class_labels) == 1:
             return _LeafNode(class_labels.pop(), sum(weights))
 
@@ -320,10 +320,42 @@ class C45Classifier:
 
         return node
 
+    def prune_leaves(self, node):
+        if isinstance(node, _DecisionNode):
+            children_copy = list(node.children.items())
+            for value, child in children_copy:
+                if isinstance(child, _DecisionNode):
+                    # Recursively prune the child nodes
+                    self.prune_leaves(child)
+
+                    leaf_labels = set()
+                    all_leaf_children = True
+                    for g_value, grandchild in child.children.items():
+                        if isinstance(grandchild, _LeafNode):
+                            leaf_labels.add(grandchild.label)
+                        else:
+                            all_leaf_children = False
+                            break
+
+                    if all_leaf_children and len(leaf_labels) == 1:
+                        child_label = leaf_labels.pop()
+                        node_weight = sum(grandchild.weight for grandchild in child.children.values())
+
+                        for grandchild_value, grandchild_node in list(child.children.items()):
+                            del child.children[grandchild_value]
+
+                        del node.children[value]
+
+                        node.add_child(value,
+                                       _LeafNode(child_label, node_weight))
+
+        return node
+
     def __make_tree(self, data, attributes, weights):
         # Make decision tree using the given dataset, attributes, and weights
         tree = self.__build_decision_tree(data, attributes, weights)
         tree = self.prune_tree(tree)
+        tree = self.prune_leaves(tree)
         return tree
 
     def __train(self, data, weight=1):

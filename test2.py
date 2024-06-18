@@ -21,7 +21,7 @@ print(expanded_data.head())
 
 
 # Instantiate the C45Classifier
-classifier = C45Classifier(max_depth=5, min_samples_leaf=2)
+classifier = C45Classifier(max_depth=10, min_samples_leaf=1)
 
 # Separate features and labels
 features = expanded_data.drop('PlayTennis', axis=1)
@@ -60,7 +60,7 @@ print("Decision Rules:")
 classifier.print_rules()
 
 # Generate a visual representation of the decision tree
-classifier.generate_tree_diagram(graphviz, "decision_tree_2")
+classifier.generate_tree_diagram(graphviz, "decision_tree_3")
 
 # Print summary
 classifier.summary()
