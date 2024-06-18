@@ -66,56 +66,72 @@ class _LeafNode:
 
 
 class C45Classifier:
-    def __init__(self, min_samples_leaf=1, max_depth=None):
+    def __init__(self, min_samples_leaf=1, max_depth=None, max_splits=2):
         self.tree = None
         self.attributes = None
         self.data = None
         self.weight = 1
         self.min_samples_leaf = min_samples_leaf
         self.max_depth = max_depth
+        self.max_splits = max_splits
 
-    def find_best_threshold(self, data, attribute_index, weights, total_entropy):
-        # Extract the specific column from data
+    def find_best_thresholds(self, data, attribute_index, weights, total_entropy):
         column_data = [row[attribute_index] for row in data]
-        # Obtain sorted unique values from the column
         unique_values = sorted(set(column_data))
 
-        best_threshold = None
+        best_thresholds = None
         best_gain_ratio = -float('inf')
+
+        for num_splits in range(2, self.max_splits + 1):
+            split_combinations = combinations(unique_values[1:], num_splits - 1)
+            for split_points in split_combinations:
+                thresholds = sorted(split_points)
+                subsets = [[] for _ in range(num_splits)]
+                subset_weights = [[] for _ in range(num_splits)]
+
+                for i, value in enumerate(column_data):
+                    for j, threshold in enumerate(thresholds):
+                        if value <= threshold:
+                            subsets[j].append(data[i])
+                            subset_weights[j].append(weights[i])
+                            break
+                    else:
+                        subsets[-1].append(data[i])
+                        subset_weights[-1].append(weights[i])
+
+                attribute_entropy = 0.0
+                split_info = 0.0
+
+                for subset, subset_weight in zip(subsets, subset_weights):
+                    if subset:
+                        subset_entropy = self.__calculate_entropy(subset, subset_weight)
+                        subset_probability = sum(subset_weight) / sum(weights)
+                        attribute_entropy += subset_probability * subset_entropy
+                        if subset_probability > 0:
+                            split_info -= subset_probability * math.log2(subset_probability)
+
+                gain = total_entropy - attribute_entropy
+                gain_ratio = gain / split_info if split_info != 0 else 0
+
+                if gain_ratio > best_gain_ratio:
+                    best_gain_ratio = gain_ratio
+                    best_thresholds = thresholds
+
+        return best_thresholds, best_gain_ratio
+
+    def generate_splits(self, data, attribute_index, num_splits):
+        column_data = [row[attribute_index] for row in data]
+        unique_values = sorted(set(column_data))
+        splits = []
 
         for i in range(1, len(unique_values)):
             threshold = (unique_values[i - 1] + unique_values[i]) / 2
-            split_info = 0.0
-            attribute_entropy = 0.0
+            splits.append(threshold)
 
-            # Create subsets based on the threshold
-            for subset in ["left", "right"]:
-                if subset == "left":
-                    subset_indices = [index for index, value in enumerate(column_data) if value <= threshold]
-                else:
-                    subset_indices = [index for index, value in enumerate(column_data) if value > threshold]
+        if len(splits) < num_splits - 1:
+            return [splits]
 
-                subset_data = [data[index] for index in subset_indices]
-                subset_weights = [weights[index] for index in subset_indices]
-
-                # Calculate entropy if subset is not empty
-                if subset_data:
-                    subset_entropy = self.__calculate_entropy(subset_data, subset_weights)
-                    subset_probability = sum(subset_weights) / sum(weights)
-                    attribute_entropy += subset_probability * subset_entropy
-                    if subset_probability > 0:
-                        split_info -= subset_probability * math.log2(subset_probability)
-
-            # Calculate gain and gain ratio
-            gain = total_entropy - attribute_entropy
-            gain_ratio = gain / split_info if split_info != 0 else 0
-
-            # Check if this threshold provides a better gain ratio
-            if gain_ratio > best_gain_ratio:
-                best_gain_ratio = gain_ratio
-                best_threshold = threshold
-
-        return best_threshold, best_gain_ratio
+        return list(combinations(splits, num_splits - 1))
 
     def __calculate_entropy(self, data, weights):
         # Calculate entropy of the given dataset
@@ -139,19 +155,6 @@ class C45Classifier:
 
         return entropy
 
-    def __split_data(self, data, attribute_index, attribute_value, weights):
-        # Split dataset based on the given attribute value
-        split_data = []  # Store matching data subsets
-        split_weights = []  # Store matching weight subsets
-
-        for i, record in enumerate(data):
-            if record[attribute_index] == attribute_value:
-                split_data.append(record)
-                split_weights.append(weights[i])
-        # print(split_data)
-        # print(split_weights)
-        return split_data, split_weights
-
     def __split_data_categorical(self, data, attribute_index, grouping, weights):
         split_data = {tuple(group): [] for group in grouping}
         split_weights = {tuple(group): [] for group in grouping}
@@ -174,16 +177,16 @@ class C45Classifier:
         total_entropy = self.__calculate_entropy(data, weights)
         best_attribute = None
         best_gain_ratio = 0.0
-        best_threshold = None
+        best_thresholds = None
         best_grouping = None
 
         for attribute_index in range(len(attributes)):
             if is_numeric_attribute(data, attribute_index):
-                threshold, measure = self.find_best_threshold(data, attribute_index, weights, total_entropy)
+                thresholds, measure = self.find_best_thresholds(data, attribute_index, weights, total_entropy)
                 if measure > best_gain_ratio:
                     best_gain_ratio = measure
                     best_attribute = attribute_index
-                    best_threshold = threshold
+                    best_thresholds = thresholds
                     best_grouping = None
             else:
                 attribute_values = list(set([record[attribute_index] for record in data]))
@@ -210,10 +213,9 @@ class C45Classifier:
                     if gain_ratio > best_gain_ratio:
                         best_gain_ratio = gain_ratio
                         best_attribute = attribute_index
-                        best_threshold = None
+                        best_thresholds = None
                         best_grouping = grouping
-        print(best_attribute, best_grouping)
-        return best_attribute, best_threshold, best_grouping
+        return best_attribute, best_thresholds, best_grouping
 
     def __majority_class(self, data, weights):
         # Determine the majority class in the dataset
@@ -259,28 +261,30 @@ class C45Classifier:
         best_attribute_name = attributes[best_attribute]
 
         tree = _DecisionNode(best_attribute_name)
-        # new_attributes = attributes[:best_attribute] + attributes[best_attribute + 1:]
 
         if best_threshold is not None:
-            # left_data = [rec for rec in data if rec[best_attribute] <= best_threshold]
-            # right_data = [rec for rec in data if rec[best_attribute] > best_threshold]
-            # left_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] <= best_threshold]
-            # right_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] > best_threshold]
-            #
-            # if sum(left_weights) >= self.min_samples_leaf:
-            #     tree.add_child("<= " + str(best_threshold),
-            #                    self.__build_decision_tree(left_data, new_attributes, left_weights, depth + 1))
-            # else:
-            #     tree.add_child("<= " + str(best_threshold),
-            #                    _LeafNode(self.__majority_class(left_data, left_weights), sum(left_weights)))
-            #
-            # if sum(right_weights) >= self.min_samples_leaf:
-            #     tree.add_child("> " + str(best_threshold),
-            #                    self.__build_decision_tree(right_data, new_attributes, right_weights, depth + 1))
-            # else:
-            #     tree.add_child("> " + str(best_threshold),
-            #                    _LeafNode(self.__majority_class(right_data, right_weights), sum(right_weights)))
-            pass
+            for i in range(len(best_threshold)):
+                threshold = best_threshold[i]
+                if i == 0:
+                    subset_data = [rec for rec in data if rec[best_attribute] <= threshold]
+                    subset_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] <= threshold]
+                else:
+                    prev_threshold = best_threshold[i - 1]
+                    subset_data = [rec for rec in data if prev_threshold < rec[best_attribute] <= threshold]
+                    subset_weights = [weights[i] for i, rec in enumerate(data) if
+                                      prev_threshold < rec[best_attribute] <= threshold]
+
+                if subset_data:
+                    tree.add_child(f"<= {threshold}" if i == 0 else f"({prev_threshold},{threshold}]",
+                                   self.__build_decision_tree(subset_data, attributes, subset_weights, depth + 1))
+
+            subset_data = [rec for rec in data if rec[best_attribute] > best_threshold[-1]]
+            subset_weights = [weights[i] for i, rec in enumerate(data) if rec[best_attribute] > best_threshold[-1]]
+
+            if subset_data:
+                tree.add_child(f"> {best_threshold[-1]}",
+                               self.__build_decision_tree(subset_data, attributes, subset_weights, depth + 1))
+
         else:
             split_data, split_weights = self.__split_data_categorical(data, best_attribute, best_grouping, weights)
             for group in best_grouping:
@@ -354,8 +358,8 @@ class C45Classifier:
     def __make_tree(self, data, attributes, weights):
         # Make decision tree using the given dataset, attributes, and weights
         tree = self.__build_decision_tree(data, attributes, weights)
-        tree = self.prune_tree(tree)
-        tree = self.prune_leaves(tree)
+        # tree = self.prune_tree(tree)
+        # tree = self.prune_leaves(tree)
         return tree
 
     def __train(self, data, weight=1):
@@ -378,23 +382,37 @@ class C45Classifier:
 
         attribute = tree.attribute
         attribute_index = self.attributes.index(attribute)
-        attribute_values = instance[attribute_index]
+        attribute_value = instance[attribute_index]
 
-        if attribute_values in tree.children:
-            child_node = tree.children[attribute_values]
-            return self.__classify(child_node, instance)
-        elif "Other" in tree.children:
-            child_node = tree.children["Other"]
-            return self.__classify(child_node, instance)
-        else:
-            class_labels = []
-            for child_node in tree.children.values():
-                if isinstance(child_node, _LeafNode):
-                    class_labels.append(child_node.label)
-            if len(class_labels) == 0:
-                return self.__majority_class(self.data.values.tolist(), [1.0] * len(self.data))
-            majority_class = max(set(class_labels))
-            return majority_class
+        for value, child_node in tree.children.items():
+            if "<=" in value:
+                threshold = float(value.split()[-1])
+                if attribute_value <= threshold:
+                    return self.__classify(child_node, instance)
+            elif ">" in value:
+                threshold = float(value.split()[-1])
+                if attribute_value > threshold:
+                    return self.__classify(child_node, instance)
+            elif "(" in value and "," in value:
+                # Split the range string and convert to float
+                range_values = value.strip("()").split(",")
+                lower_threshold = float(range_values[0].strip())
+                upper_threshold = float(range_values[1].strip().rstrip("]"))
+                if lower_threshold < attribute_value <= upper_threshold:
+                    return self.__classify(child_node, instance)
+            else:
+                if attribute_value == value:
+                    return self.__classify(child_node, instance)
+
+            # If no matching child, return the majority class
+        class_labels = []
+        for child_node in tree.children.values():
+            if isinstance(child_node, _LeafNode):
+                class_labels.append(child_node.label)
+        if len(class_labels) == 0:
+            return self.__majority_class(self.data.values.tolist(), [1.0] * len(self.data))
+        majority_class = max(set(class_labels))
+        return majority_class
 
     def fit(self, data, label, weight=1):
         # Train decision tree using the given dataset

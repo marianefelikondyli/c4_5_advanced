@@ -21,7 +21,7 @@ print(expanded_data.head())
 
 
 # Instantiate the C45Classifier
-classifier = C45Classifier(max_depth=10, min_samples_leaf=1)
+classifier = C45Classifier(max_depth=5, min_samples_leaf=1, max_splits=5)
 
 # Separate features and labels
 features = expanded_data.drop('PlayTennis', axis=1)
@@ -35,7 +35,8 @@ test_data = pd.DataFrame({
     'Outlook': ['Sunny', 'Rain', 'Overcast'],
     'Temperature': ['Hot', 'Cool', 'Mild'],
     'Humidity': ['High', 'Normal', 'High'],
-    'Windy': [False, True, True]
+    'Windy': [False, True, True],
+    'Temp_num': [79, 83, 81]
 })
 
 # Predict using the test set
@@ -49,7 +50,8 @@ test_data_with_labels = pd.DataFrame({
     'Temperature': ['Hot', 'Cool', 'Mild'],
     'Humidity': ['High', 'Normal', 'High'],
     'Windy': [False, True, True],
-    'PlayTennis': ['No', 'Yes', 'Yes']
+    'PlayTennis': ['No', 'Yes', 'Yes'],
+'Temp_num': [79, 83, 81]
 })
 x_test = test_data_with_labels.drop('PlayTennis', axis=1)
 y_test = test_data_with_labels['PlayTennis']
