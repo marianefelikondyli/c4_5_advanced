@@ -23,7 +23,7 @@ def test_c45_classifier():
     print(X_train.head())
 
     # Initialize and train the classifier
-    classifier = C45Classifier(min_samples_leaf=4, max_depth=8)
+    classifier = C45Classifier(min_samples_leaf=2, max_depth=6, max_splits=3)
     classifier.fit(X_train, y_train)
     print(classifier.tree.depth())
 
@@ -36,7 +36,7 @@ def test_c45_classifier():
 
     # Optionally generate a tree diagram (if Graphviz is installed and configured)
     try:
-        classifier.generate_tree_diagram(graphviz, "tree_diagram_test_5")
+        classifier.generate_tree_diagram(graphviz, "tree_diagram_test_6")
     except Exception as e:
         print("Could not generate tree diagram:", e)
 

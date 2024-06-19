@@ -76,28 +76,34 @@ class C45Classifier:
         self.max_splits = max_splits
 
     def find_best_thresholds(self, data, attribute_index, weights, total_entropy):
-        column_data = [row[attribute_index] for row in data]
-        unique_values = sorted(set(column_data))
+        column_data = [(row[attribute_index], row[-1], weights[i]) for i, row in enumerate(data)]
+        column_data.sort()
 
-        best_thresholds = None
+        best_thresholds = []
         best_gain_ratio = -float('inf')
 
+        change_points = []
+        for i in range(1, len(column_data)):
+            if column_data[i][1] != column_data[i-1][1]:
+                change_points.append(i)
+
         for num_splits in range(2, self.max_splits + 1):
-            split_combinations = combinations(unique_values[1:], num_splits - 1)
+            split_combinations = combinations(change_points, num_splits - 1)
             for split_points in split_combinations:
-                thresholds = sorted(split_points)
+                print(split_points)
+                thresholds = [column_data[sp-1][0] for sp in split_points]
                 subsets = [[] for _ in range(num_splits)]
                 subset_weights = [[] for _ in range(num_splits)]
 
-                for i, value in enumerate(column_data):
+                for i, (value, label, weight) in enumerate(column_data):
                     for j, threshold in enumerate(thresholds):
                         if value <= threshold:
                             subsets[j].append(data[i])
-                            subset_weights[j].append(weights[i])
+                            subset_weights[j].append(weight)
                             break
                     else:
                         subsets[-1].append(data[i])
-                        subset_weights[-1].append(weights[i])
+                        subset_weights[-1].append(weight)
 
                 attribute_entropy = 0.0
                 split_info = 0.0
