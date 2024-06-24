@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import graphviz
 
-expanded_data = pd.read_csv('play_tennis.csv', delimiter=';')
+expanded_data = pd.read_csv('play_tennis_2.csv', delimiter=';')
 expanded_data.drop(columns=['Unnamed: 0'], inplace=True)
 
 print(expanded_data.head())
@@ -16,7 +16,7 @@ print(expanded_data.head())
 #     'Windy': [False, True, False, False, False, True, True, False, False, False, True, True, False, True],
 #     'PlayTennis': ['No', 'No', 'Yes', 'Yes', 'Yes', 'No', 'Yes', 'No', 'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No']
 # })
-#
+
 # expanded_data.to_csv('test_data.csv')
 
 
@@ -36,7 +36,6 @@ test_data = pd.DataFrame({
     'Temperature': ['Hot', 'Cool', 'Mild'],
     'Humidity': ['High', 'Normal', 'High'],
     'Windy': [False, True, True],
-    'Temp_num': [79, 83, 81]
 })
 
 # Predict using the test set
@@ -51,7 +50,6 @@ test_data_with_labels = pd.DataFrame({
     'Humidity': ['High', 'Normal', 'High'],
     'Windy': [False, True, True],
     'PlayTennis': ['No', 'Yes', 'Yes'],
-'Temp_num': [79, 83, 81]
 })
 x_test = test_data_with_labels.drop('PlayTennis', axis=1)
 y_test = test_data_with_labels['PlayTennis']
@@ -62,7 +60,7 @@ print("Decision Rules:")
 classifier.print_rules()
 
 # Generate a visual representation of the decision tree
-classifier.generate_tree_diagram(graphviz, "decision_tree_3")
+classifier.generate_tree_diagram(graphviz, "decision_tree_4")
 
 # Print summary
 classifier.summary()
